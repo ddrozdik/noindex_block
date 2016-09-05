@@ -1,0 +1,5 @@
+name: Noindex Block
+type: module
+description: Allows to hide a block from being indexed by search engines.
+package: SEO
+core: 8.x

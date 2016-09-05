@@ -1,0 +1,5 @@
+{
+  "name": "drupal/noindex_block",
+  "description": "Allows to hide a block from being indexed by search engines.",
+  "type": "drupal-module"
+}

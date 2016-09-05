@@ -1,0 +1,133 @@
+<?php
+/**
+ * @file
+ * The main file for Noindex Block module.
+ */
+
+use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Routing\RouteMatchInterface;
+use Drupal\Core\Url;
+
+/**
+ * Implements hook_help().
+ */
+function noindex_block_help($route_name, RouteMatchInterface $route_match) {
+  switch ($route_name) {
+    case 'help.page.noindex_block':
+      $output = '<h3>' . t('About') . '</h3>';
+      $output .= '<p>' . t('The module allows to hide any block from being indexed by search engine (currently Yandex).');
+      $output .= t('It wraps block content in the absolutely valid HTML code:') . '<br />';
+      $output .= t('@open_tag A block content @close_tag', [
+        '@open_tag' => '<!--noindex-->',
+        '@close_tag' => '<!--/noindex-->',
+      ]);
+      $output .= '<br />';
+      $output .= t('Official !link', [
+        '!link' => (string) \Drupal::l('Yandex documentation', Url::fromUri('http://help.yandex.ru/webmaster/controlling-robot/html.xml#noindex')),
+      ]);
+      $output .= '</p>';
+
+      return $output;
+  }
+}
+
+/**
+ * Implements hook_theme().
+ */
+function noindex_block_theme() {
+  return [
+    'noindex_block_wrapper' => [
+      'render element' => 'element',
+    ],
+  ];
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter() for 'block_form'.
+ */
+function noindex_block_form_block_form_alter(array &$form, FormStateInterface $form_state) {
+  /** @var \Drupal\block\Entity\Block $entity */
+  $entity = $form_state->getFormObject()->getEntity();
+
+  // Search engine settings.
+  $form['seo'] = [
+    '#type' => 'fieldset',
+    '#title' => t('SEO'),
+  ];
+  // Add Noindex checkbox to configuration form of all blocks.
+  $form['seo']['noindex'] = [
+    '#type' => 'checkbox',
+    '#title' => t('Noindex block'),
+    '#default_value' => $entity->getThirdPartySetting('noindex_block', 'noindex', 0),
+    '#description' => t('Please note this setting is currently working for !link', [
+      '!link' => (string) \Drupal::l('Yandex', Url::fromUri('http://yandex.com')),
+    ]),
+    '#weight' => 1,
+  ];
+  $form['actions']['submit']['#submit'][] = 'noindex_block_form_block_form_submit';
+}
+
+/**
+ * Save custom parameter to third party settings for the block entity.
+ *
+ * @param array $form
+ *   Form.
+ * @param \Drupal\Core\Form\FormStateInterface $form_state
+ *   Form state.
+ */
+function noindex_block_form_block_form_submit(array $form, FormStateInterface $form_state) {
+  /** @var \Drupal\block\Entity\Block $entity */
+  $entity = $form_state->getFormObject()->getEntity();
+  $value = $form_state->getValue('seo');
+  // Add settings only if value is set.
+  if ($value['noindex']) {
+    $entity->setThirdPartySetting('noindex_block', 'noindex', $value['noindex']);
+  }
+  else {
+    $entity->unsetThirdPartySetting('noindex_block', 'noindex');
+  }
+  $entity->save();
+}
+
+/**
+ * Implements hook_block_view_alter().
+ */
+function noindex_block_block_view_alter(array &$build, \Drupal\Core\Block\BlockPluginInterface $block) {
+  /** @var \Drupal\block\Entity\Block $entity */
+  $entity = $build['#block'];
+
+  $value = $entity->getThirdPartySetting('noindex_block', 'noindex', 0);
+  if (!$value) {
+    return;
+  }
+  $build['#pre_render'][] = 'noindex_block_block_view_pre_render';
+}
+
+/**
+ * Pre render callback for the block.
+ *
+ * @param array $build
+ *   Build.
+ *
+ * @return array $build
+ *   Modified build.
+ */
+function noindex_block_block_view_pre_render(array $build) {
+  // Ignore if there is no content in this block.
+  if (!isset($build['content'])) {
+    return $build;
+  }
+  // Process module-generated blocks with forms.
+  if (is_array($build['content'])) {
+    $build['content']['#theme_wrappers'][] = 'noindex_block_wrapper';
+  }
+  else {
+    // Process custom content blocks.
+    $build['content'] = [
+      '#theme_wrappers' => ['noindex_block_wrapper'],
+      '#markup' => $build['content'],
+    ];
+  }
+
+  return $build;
+}
